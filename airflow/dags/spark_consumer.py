@@ -1,3 +1,4 @@
+#airflow/dags/spark_consumer.py
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import StructType, StringType, DoubleType, LongType
