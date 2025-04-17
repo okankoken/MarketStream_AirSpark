@@ -72,7 +72,7 @@ def fetch_combined_data(symbol):
 def stream_to_kafka():
     print("Streaming started... Press Ctrl+C to stop.")
     while True:
-        for sym in symbols[:20]:  # test icin sinirli
+        for sym in symbols: #[:20]:  # test icin sinirli
             enriched_payload = fetch_combined_data(sym)
             if enriched_payload.get("price"):
                 producer.send("realtime-stock-data", enriched_payload)
