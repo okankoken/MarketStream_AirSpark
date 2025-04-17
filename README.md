@@ -1,86 +1,95 @@
+# 📈 MarketStream_AirSpark
 
-```
-Adım	Açıklama
-🏁 1	Proje klasörü ve venv oluşturuldu.
-⚙️ 2	docker-compose.yml ile Kafka, PostgreSQL, Elasticsearch, Kibana kuruldu.
-🚦 3	Airflow kurulumu tamamlandı (init, webserver, scheduler)
-🧠 4	finnhub_producer.py ile veri üretici script yazıldı
-🌐 5	DAG (realtime_finnhub_dag.py) yazıldı ve UI'de çalıştı.
-🔁 6	GitHub senkronizasyonu sağlandı (git-sync ✅)
-```
+Gerçek zamanlı ABD hisse senedi verilerini toplayan, zenginleştiren ve analiz eden bir veri mühendisliği projesidir. Veriler Finnhub API üzerinden çekilir, Apache Kafka ile iletilir, Apache Spark ile işlenir ve zenginleştirilir.
 
-```
-🎯 Projenin Amacı:
-"Amerika borsalarındaki (NASDAQ, NYSE, DOW JONES) hisse senetlerinin gerçek zamanlı verilerini Kafka üzerinden toplayıp, Apache Spark ile işleyerek PostgreSQL ve Elasticsearch'e yazmak. Ardından bu verileri Airflow ile otomatikleştirip, Power BI ve Kibana üzerinden canlı analiz ve görselleştirme yapmak."
+## 🚀 Kullanılan Teknolojiler
 
-🔍 Hedeflenen Çıktılar:
-Gerçek zamanlı hisse verisi toplama (price, volume, timestamp vs.)
-
-Kafka ile akış yönetimi
-
-Spark ile veri işleme ve filtreleme
-
-PostgreSQL: analiz için veritabanına yazım
-
-Elasticsearch: Kibana dashboard için
-
-Power BI: dış kullanıcıya görsel raporlar
-
-Airflow: tüm bu süreci DAG ile otomatikleştirme
-
-```
-
-
-### Gerekli Spark Kafka JAR’ları
-
-Bu proje aşağıdaki JAR'lara ihtiyaç duyar:
-- spark-sql-kafka-0-10_2.12-3.5.5.jar
-- kafka-clients-3.5.1.jar
-- spark-token-provider-kafka-0-10_2.12-3.5.5.jar
-- commons-pool2-2.11.1.jar
-
-Lütfen bu dosyaları `./jars` dizinine indirip mount ettiğinizden emin olun.
-
-
+- 📨 **Kafka** — Gerçek zamanlı veri kuyruğu
+- ⚡ **Apache Spark** — Streaming veriyi işleme
+- 🧪 **Finnhub API** — Anlık ve geçmiş finansal veriler
+- 🐍 **Python** — Producer & veri işleme
+- 🐘 **PostgreSQL** (İleride)
+- 📊 **Kibana / Power BI** (İleride görselleştirme için)
+- 🐳 **Docker Compose** — Tüm servisleri ayağa kaldırmak için
 
 ---
 
+## 📁 Proje Dizini
+
 ```
 MarketStream_AirSpark/
-│
-├── tools/
-│   └── finnhub_realtime_producer.py   # API -> Kafka stream
-│
-├── airflow/dags/
-│   └── spark_consumer.py              # Kafka -> Spark -> Console (enrich)
-│
+├── airflow/
+│   └── dags/
+│       ├── finnhub_realtime_producer.py   # API verilerini Kafka'ya yollar
+│       └── spark_consumer.py              # Spark ile Kafka'dan veri çeker
 ├── data/
-│   └── stock_metadata.parquet         # Symbol metadata cache
-│
-├── jars/                              # Spark Kafka JAR’ları
-│   └── *.jar
-
+│   ├── stock_metadata_1000.parquet        # İlk 1000 hissenin temel bilgileri
+├── tools/
+│   └── fetch_stock_metadata.py            # Hisse metadata'larını indirip kaydeder
+├── .env                                   # API anahtarı burada
+├── docker-compose.yml                     # Tüm servisler buradan başlatılır
 ```
 
-# 📈 MarketStream_AirSpark: Realtime Stock Stream
+---
+
+## ⚙️ Kurulum
+
+### 1. Ortam Değişkenleri
+
+Proje kök dizininde bir `.env` dosyası oluştur:
+
+```env
+FINNHUB_API_KEY=senin_finnhub_api_keyin
+```
+
+---
+
+### 2. Docker Servislerini Başlat
+
+```bash
+docker compose up -d --build
+```
+
+---
+
+### 3. İlk 1000 Hisseyi Belirle (İsteğe bağlı)
+
+```bash
+python tools/fetch_stock_metadata.py
+```
+
+Bu script çalıştığında `data/stock_metadata_1000.parquet` dosyasını üretir.
+
+---
 
 ## 🚀 Akış Özeti
 1. `finnhub_realtime_producer.py` → API'den veri çek, Kafka'ya gönder (`localhost:9094`)
 2. `spark_consumer.py` → Kafka'dan oku, metadata ile birleştir, console'a yaz
 
-## 🔹 Metadata Hazırla
+
+## 🔁 Veri Akışı
+
+### 1. Kafka Producer'ı Başlat
+
+Aşağıdaki script Finnhub API'den zenginleştirilmiş verileri çekip Kafka’ya yollar:
+
 ```bash
-python tools/fetch_stock_metadata.py
-# → data/stock_metadata.parquet oluşur
+cd airflow/dags/
+python finnhub_realtime_producer.py
 ```
 
-## 🔹 Kafka Producer (Canlı Veri Gönderimi)
-```bash
-python tools/finnhub_realtime_producer.py
-# İlk 20 hisse, Kafka topic: realtime-stock-data
-```
+⏺ Gönderilen veri şunları içerir:
+- Fiyat, Hacim, 52 haftalık yüksek/düşük
+- Şirket adı, sektör, ülke, borsa
+- Piyasa değeri, F/K, P/B, temettü, beta, EPS
+- RSI gibi teknik göstergeler
 
-## 🔹 Spark Consumer (Veriyi Console'a Bas)
+---
+
+### 2. Spark Consumer'ı Çalıştır
+
+Kafka'dan gelen verileri okuyup işlemek için Spark container içinde şu komutu çalıştır:
+
 ```bash
 docker exec -it spark_client spark-submit \
   --jars /opt/bitnami/spark/user-jars/spark-sql-kafka-0-10_2.12-3.5.5.jar,\
@@ -90,17 +99,9 @@ docker exec -it spark_client spark-submit \
   /opt/airflow/dags/spark_consumer.py
 ```
 
-## 🔹 Test için Kafka’ya Manuel Veri Gönder
-```bash
-echo '{"symbol": "AAPL", "price": 192.31, "timestamp": 1713893600000}' | \
-docker exec -i kafka kafka-console-producer.sh \
---broker-list localhost:9092 --topic realtime-stock-data
-```
+💡 `logo` (firma logosu) sütunu konsolda görüntülenmez ama veri olarak tutulur.
 
-## ✅ Notlar
-- `metadata.parquet` Spark container’da `/opt/bitnami/spark/data/` içine mount edildi
-- Spark Kafka `.jar`'ları `--jars` ile eklenmeli
-- Console’da batch olarak enriched veri görünür
+---
 
 ## Kafka'da Gerçek Zamanlı Mesajları Görmek İçin:
 
@@ -110,4 +111,43 @@ docker exec -it kafka kafka-console-consumer.sh \
   --topic realtime-stock-data \
   --from-beginning
 ```
+
+
+## ✅ Örnek Kafka Verisi
+
+```json
+{
+  "symbol": "AAPL",
+  "timestamp": 1744926599160,
+  "price": 196.98,
+  "high_52week": 198.8335,
+  "low_52week": 194.42,
+  "volume": null,
+  "name": "Apple Inc",
+  "country": "US",
+  "exchange": "NASDAQ NMS - GLOBAL MARKET",
+  "finnhubIndustry": "Technology",
+  "marketCapitalization": 2918338.16,
+  "weburl": "https://www.apple.com/",
+  "peRatio": 30.21,
+  "pbRatio": 61.84,
+  "dividendYield": 0.51,
+  "beta": 1.29,
+  "eps": 6.29,
+  "debtToEquity": null,
+  "rsi": null
+}
+```
+
+---
+
+## 📌 Notlar
+
+- Kafka Topic: `realtime-stock-data`
+- Spark batch çıktıları düzenli aralıklarla terminale yazılır.
+- `stock_metadata_1000.parquet` sadece ilk 1000 önemli hisseyi içerir.
+---
+
+
+
 
