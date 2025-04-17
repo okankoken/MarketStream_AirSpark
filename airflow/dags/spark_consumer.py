@@ -1,3 +1,4 @@
+#airflow/dags/spark_consumer.py
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import *
@@ -46,8 +47,12 @@ df_parsed = df_raw.selectExpr("CAST(value AS STRING) as json_str") \
     .select("data.*") \
     .dropna(subset=["symbol", "price", "timestamp"])
 
-# Konsola yaz
-query = df_parsed.writeStream \
+# LOGO harici kolonlar
+columns_to_display = [c for c in df_parsed.columns if c != "logo"]
+df_display = df_parsed.select(*columns_to_display)
+
+# Console'a yaz
+query = df_display.writeStream \
     .outputMode("append") \
     .format("console") \
     .option("truncate", False) \
