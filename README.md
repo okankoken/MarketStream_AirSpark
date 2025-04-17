@@ -102,5 +102,12 @@ docker exec -i kafka kafka-console-producer.sh \
 - Spark Kafka `.jar`'ları `--jars` ile eklenmeli
 - Console’da batch olarak enriched veri görünür
 
+## Kafka'da Gerçek Zamanlı Mesajları Görmek İçin:
 
+```commandline
+docker exec -it kafka kafka-console-consumer.sh \
+  --bootstrap-server localhost:9092 \
+  --topic realtime-stock-data \
+  --from-beginning
+```
 
