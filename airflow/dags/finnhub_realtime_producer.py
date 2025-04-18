@@ -77,7 +77,7 @@ def fetch_combined_data(symbol):
 def stream_to_kafka():
     print("Streaming started... Press Ctrl+C to stop.")
     while True:
-        for sym in symbols[:10]:  # test icin kisitli
+        for sym in symbols: #[:10]:  # test icin kisitli
             enriched_payload = fetch_combined_data(sym)
 
             # ?? Debug print her durumda ciksin!

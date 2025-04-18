@@ -3,6 +3,14 @@ from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import *
 
+# PostgreSQL connection info
+jdbc_url = "jdbc:postgresql://postgres:5432/marketdb"
+db_properties = {
+    "user": "train",
+    "password": "train123",
+    "driver": "org.postgresql.Driver"
+}
+
 spark = SparkSession.builder \
     .appName("EnrichRealtimeStockData") \
     .getOrCreate()
@@ -58,4 +66,25 @@ query = df_display.writeStream \
     .option("truncate", False) \
     .start()
 
+
+
+# ??? PostgreSQL'e yaz
+query_postgres = df_parsed.writeStream \
+    .outputMode("append") \
+    .foreachBatch(lambda batch_df, epoch_id:
+        batch_df.write.jdbc(
+            url=jdbc_url,
+            table="realtime_stocks",
+            mode="append",
+            properties=db_properties
+        )
+    ) \
+    .option("checkpointLocation", "/tmp/spark_postgres_checkpoint") \
+    .start()
+
 query.awaitTermination()
+
+
+# ? Her iki stream'i de aktif tut
+query_console.awaitTermination()
+query_postgres.awaitTermination()

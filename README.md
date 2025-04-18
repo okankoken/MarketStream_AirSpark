@@ -95,7 +95,8 @@ docker exec -it spark_client spark-submit \
   --jars /opt/bitnami/spark/user-jars/spark-sql-kafka-0-10_2.12-3.5.5.jar,\
 /opt/bitnami/spark/user-jars/kafka-clients-3.5.1.jar,\
 /opt/bitnami/spark/user-jars/spark-token-provider-kafka-0-10_2.12-3.5.5.jar,\
-/opt/bitnami/spark/user-jars/commons-pool2-2.11.1.jar \
+/opt/bitnami/spark/user-jars/commons-pool2-2.11.1.jar,\
+/opt/bitnami/spark/user-jars/postgresql-42.7.1.jar \
   /opt/airflow/dags/spark_consumer.py
 ```
 
