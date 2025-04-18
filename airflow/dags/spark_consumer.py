@@ -1,3 +1,4 @@
+#/airflow/dags/spark_consumer.py
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import *
@@ -63,7 +64,7 @@ def write_to_postgres_and_elasticsearch(batch_df, epoch_id):
     # PostgreSQL
     batch_df.write.jdbc(
         url=jdbc_url,
-        table="realtime_stocks",
+        table="staging_stocks",
         mode="append",
         properties=db_properties
     )
