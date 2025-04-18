@@ -1,9 +1,8 @@
-#airflow/dags/spark_consumer.py
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import from_json, col
 from pyspark.sql.types import *
 
-# PostgreSQL connection info
+# PostgreSQL connection
 jdbc_url = "jdbc:postgresql://postgres:5432/marketdb"
 db_properties = {
     "user": "train",
@@ -11,6 +10,7 @@ db_properties = {
     "driver": "org.postgresql.Driver"
 }
 
+# Spark session
 spark = SparkSession.builder \
     .appName("EnrichRealtimeStockData") \
     .getOrCreate()
@@ -25,7 +25,7 @@ df_raw = spark.readStream \
     .option("startingOffsets", "latest") \
     .load()
 
-# Yeni JSON schema
+# JSON schema
 schema = StructType([
     StructField("symbol", StringType()),
     StructField("timestamp", LongType()),
@@ -55,36 +55,37 @@ df_parsed = df_raw.selectExpr("CAST(value AS STRING) as json_str") \
     .select("data.*") \
     .dropna(subset=["symbol", "price", "timestamp"])
 
-# LOGO harici kolonlar
-columns_to_display = [c for c in df_parsed.columns if c != "logo"]
-df_display = df_parsed.select(*columns_to_display)
+# Console icin LOGO'yu cikar
+df_display = df_parsed.drop("logo")
 
-# Console'a yaz
-query = df_display.writeStream \
+# ? Tek bir foreachBatch ile hem PostgreSQL hem Elasticsearch'e yaz
+def write_to_postgres_and_elasticsearch(batch_df, epoch_id):
+    # PostgreSQL
+    batch_df.write.jdbc(
+        url=jdbc_url,
+        table="realtime_stocks",
+        mode="append",
+        properties=db_properties
+    )
+
+    # Elasticsearch
+    batch_df.write \
+        .format("org.elasticsearch.spark.sql") \
+        .option("es.nodes", "elasticsearch") \
+        .option("es.port", "9200") \
+        .option("es.resource", "stocks_index") \
+        .option("es.nodes.wan.only", "true") \
+        .mode("append") \
+        .save()
+
+    # Console
+    batch_df.drop("logo").show(truncate=False)
+
+# writeStream baslat
+query = df_parsed.writeStream \
     .outputMode("append") \
-    .format("console") \
-    .option("truncate", False) \
-    .start()
-
-
-
-# ??? PostgreSQL'e yaz
-query_postgres = df_parsed.writeStream \
-    .outputMode("append") \
-    .foreachBatch(lambda batch_df, epoch_id:
-        batch_df.write.jdbc(
-            url=jdbc_url,
-            table="realtime_stocks",
-            mode="append",
-            properties=db_properties
-        )
-    ) \
-    .option("checkpointLocation", "/tmp/spark_postgres_checkpoint") \
+    .foreachBatch(write_to_postgres_and_elasticsearch) \
+    .option("checkpointLocation", "/tmp/spark_multi_checkpoint") \
     .start()
 
 query.awaitTermination()
-
-
-# ? Her iki stream'i de aktif tut
-query_console.awaitTermination()
-query_postgres.awaitTermination()
