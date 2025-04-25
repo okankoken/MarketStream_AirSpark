@@ -25,6 +25,7 @@ Gerçek zamanlı ABD hisse senedi verilerini toplayan, zenginleştiren ve analiz
 - 🐘 **PostgreSQL** — Yapılandırılmış veri deposu
 - 🧠 **Elasticsearch** — Arama ve analiz için NoSQL motoru
 - 📊 **Kibana / Power BI** — Görselleştirme için
+- 🛫 Apache Airflow — Veri akışı orkestrasyonu ve otomatikleştirme
 - 🐳 **Docker Compose** — Tüm servisleri ayağa kaldırmak için
 - 🐍 **Python** — Kafka Producer, Spark scriptleri ve API bağlantıları için
 
