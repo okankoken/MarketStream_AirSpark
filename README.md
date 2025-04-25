@@ -35,19 +35,23 @@ flowchart TD
     A[Finnhub API] -->|Veri çekilir| B(Kafka Producer)
     B --> C[Kafka Topic: realtime-stock-data]
     C --> D(Spark Consumer)
-    D --> E[Parquet Metadata ile Join]
+    D --> E[PostgreSQL: staging_stocks]
     E --> F[PostgreSQL: realtime_stocks]
-    E --> G[Elasticsearch: stocks_index]
     F --> H[Power BI]
+
+    %% Airflow üzerinden ES yükleme
+    E --> J[Airflow DAG: load_postgres_to_elasticsearch]
+    J --> G[Elasticsearch: stocks_index]
     G --> I[Kibana]
 
     subgraph Docker_Containers
         B
         C
         D
-        F
+        E
         G
         I
+        J
     end
 
     %% Harici bileşenleri renklendirme
@@ -55,7 +59,8 @@ flowchart TD
     style H fill:#f0ebe7,stroke:#6d4c41,stroke-width:2px
     style I fill:#e0f2f1,stroke:#009688,stroke-width:2px
     style G fill:#f3e5f5,stroke:#8e24aa,stroke-width:2px
-    style F fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px
+    style E fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px
+    style J fill:#fff9c4,stroke:#fbc02d,stroke-width:2px
 ```
 
 ---
