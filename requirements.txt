@@ -1,0 +1,7 @@
+apache-airflow==2.7.2
+requests
+python-dotenv
+kafka-python
+pandas
+pyspark==3.3.2
+elasticsearch

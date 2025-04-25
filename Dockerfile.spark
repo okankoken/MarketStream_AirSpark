@@ -1,0 +1,9 @@
+FROM bitnami/spark:3.3.2
+
+USER root
+
+COPY ./requirements_spark.txt /tmp/requirements_spark.txt
+
+RUN pip install --no-cache-dir -r /tmp/requirements_spark.txt
+
+USER 1001

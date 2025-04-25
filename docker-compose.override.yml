@@ -1,0 +1,4 @@
+services:
+  spark-client:  # Ayni ismi kullan!
+    environment:
+      - USER=train

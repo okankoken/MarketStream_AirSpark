@@ -1,0 +1,15 @@
+FROM apache/airflow:2.7.2
+
+USER root
+
+# Sistem paketlerini yukle
+RUN apt-get update && \
+    apt-get install -y netcat coreutils && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# airflow-init için requirements yukle (gerekirse)
+COPY requirements.txt .
+
+USER airflow
+RUN pip install --no-cache-dir -r requirements.txt

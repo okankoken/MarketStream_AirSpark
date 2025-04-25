@@ -1,0 +1,184 @@
+version: '3.8'
+
+services:
+
+  kafka:
+    image: bitnami/kafka:3.5.1
+    container_name: kafka
+    environment:
+      - KAFKA_KRAFT_MODE=true
+      - KAFKA_CFG_NODE_ID=1
+      - KAFKA_CFG_PROCESS_ROLES=broker,controller
+      - KAFKA_CFG_CONTROLLER_QUORUM_VOTERS=1@kafka:9093
+      - KAFKA_CFG_LISTENERS=INTERNAL://:9092,EXTERNAL://:9094,CONTROLLER://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=INTERNAL://kafka:9092,EXTERNAL://localhost:9094
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      - KAFKA_CFG_CONTROLLER_LISTENER_NAMES=CONTROLLER
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=INTERNAL
+      - ALLOW_PLAINTEXT_LISTENER=yes
+    ports:
+      - "9094:9094"
+    volumes:
+      - kafka_data:/bitnami/kafka/data
+
+  kafka-tools:
+    image: bitnami/kafka:3.5.1
+    container_name: kafka-tools
+    depends_on:
+      - kafka
+    entrypoint: ["sleep", "infinity"]
+
+  postgres:
+    image: postgres:14
+    container_name: postgres
+    environment:
+      POSTGRES_USER: train
+      POSTGRES_PASSWORD: train123
+      POSTGRES_DB: marketdb
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.1
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.1
+    container_name: kibana
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+    volumes:
+      - kibana_data:/usr/share/kibana/data
+
+  airflow-init:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile.init  
+    container_name: airflow-init
+    depends_on:
+      - postgres
+      - kafka
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://train:train123@postgres:5432/marketdb
+      AIRFLOW__CORE__FERNET_KEY: fzybZPxYcvRt0f0qd6mynjg-jX4y5ZcUYTZJxZSR7d0=
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      _AIRFLOW_DB_UPGRADE: "true"
+      _AIRFLOW_WWW_USER_CREATE: "true"
+      _AIRFLOW_WWW_USER_USERNAME: admin
+      _AIRFLOW_WWW_USER_PASSWORD: admin
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/scripts:/opt/airflow/scripts
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - .:/opt/project
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: /bin/bash
+    command: >
+      -c "
+      airflow db upgrade &&
+      airflow users create --username admin --password admin --firstname data --lastname engineer --role Admin --email admin@airflow.local &&
+      echo 'Waiting for Kafka...' &&
+      for i in {1..30}; do
+        nc -z kafka 9092 && echo 'Kafka is ready!' && break
+        echo 'Kafka not ready, waiting...'
+        sleep 5
+      done
+      "
+
+
+  airflow-webserver:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    container_name: airflow-webserver
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__FERNET_KEY: fzybZPxYcvRt0f0qd6mynjg-jX4y5ZcUYTZJxZSR7d0=
+      AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: "False"
+      AIRFLOW__CORE__LOAD_EXAMPLES: "False"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://train:train123@postgres:5432/marketdb
+      AIRFLOW__WEBSERVER__SECRET_KEY: some_secret
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+    env_file:
+      - .env.docker   
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/scripts:/opt/airflow/scripts
+      - /var/run/docker.sock:/var/run/docker.sock
+    #user: "0:0"
+    ports:
+      - "8080:8080"
+    command: ["webserver"]
+
+  airflow-scheduler:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile
+    container_name: airflow-scheduler
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://train:train123@postgres:5432/marketdb
+      AIRFLOW__CORE__FERNET_KEY: fzybZPxYcvRt0f0qd6mynjg-jX4y5ZcUYTZJxZSR7d0=
+      AIRFLOW__CORE__DAGS_FOLDER: /opt/airflow/dags
+      AIRFLOW__WEBSERVER__SECRET_KEY: some_secret
+    env_file:
+      - .env.docker 
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/plugins:/opt/airflow/plugins
+      - ./airflow/scripts:/opt/airflow/scripts
+      - /var/run/docker.sock:/var/run/docker.sock
+    #user: "0:0"
+    command: ["airflow", "scheduler"]
+
+
+  spark-client:
+    container_name: spark_client
+    build:
+      context: .
+      dockerfile: Dockerfile.spark
+    environment:
+      - SPARK_MODE=client
+      - HOME=/opt/bitnami/spark
+      - SPARK_EXTRA_CLASSPATH=/opt/bitnami/spark/user-jars/*
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./spark/passwd.custom:/etc/passwd:ro
+      - ./jars:/opt/bitnami/spark/user-jars
+      - ./data:/opt/bitnami/spark/data
+      - ./airflow/scripts:/opt/spark/scripts
+      - ./airflow/scripts/requirements.txt:/tmp/requirements.txt
+      - ./.env:/opt/spark/.env
+    entrypoint: ["/bin/bash", "-c", "tail -f /dev/null"]
+    user: "1001"
+    ports:
+      - "4040:4040"
+      - "4041:4041"
+    working_dir: /opt/bitnami/spark
+
+
+volumes:
+  elasticsearch_data:
+  kibana_data:
+  postgres_data:
+  kafka_data:
+    name: kafka_data
